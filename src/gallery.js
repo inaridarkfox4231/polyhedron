@@ -55,6 +55,24 @@ let fs =
 "const vec3 f12_5 = vec3(0.49112, -0.18759, 0.85065);" +
 "const vec3 f12_6 = vec3(0.49112, -0.18759, -0.85065);" +
 // 正二十面体の面対ベクトル（10個）
+// 内側5個のあと外側5個、一つの面はx軸負方向。
+"const vec3 f20_1 = vec3(-0.60706, 0.79465, 0.0);" +
+"const vec3 f20_2 = vec3(-0.18759, 0.79465, 0.57735);" +
+"const vec3 f20_3 = vec3(0.49112, 0.79465, 0.35682);" +
+"const vec3 f20_4 = vec3(0.49112, 0.79465, -0.35682);" +
+"const vec3 f20_5 = vec3(-0.18759, 0.79465, -0.57735);" +
+"const vec3 f20_6 = vec3(-0.98225, 0.18759, 0.0);" +
+"const vec3 f20_7 = vec3(-0.30353, 0.18759, 0.93417);" +
+"const vec3 f20_8 = vec3(0.79465, 0.18759, 0.57735);" +
+"const vec3 f20_9 = vec3(0.79465, 0.18759, -0.57735);" +
+"const vec3 f20_10 = vec3(-0.30353, 0.18759, -0.93417);" +
+// 正二十面体の頂点ベクトル。ひとつはx軸側。atan(2)だけ倒して回す。
+"const vec3 v20_1 = vec3(0.0, 1.0, 0.0);" +
+"const vec3 v20_2 = vec3(0.89443, 0.44721, 0.0);" +
+"const vec3 v20_3 = vec3(0.27639, 0.44721, -0.85065);" +
+"const vec3 v20_4 = vec3(-0.72361, 0.44721, -0.52573);" +
+"const vec3 v20_5 = vec3(-0.72361, 0.44721, 0.52573);" +
+"const vec3 v20_6 = vec3(0.27639, 0.44721, 0.85065);" +
 // 色関連
 // 自由に取得するならgetRGBで。
 "const vec3 black = vec3(0.2);" +
@@ -68,6 +86,9 @@ let fs =
 "const vec3 skyblue = vec3(0.1, 0.65, 0.9);" +
 "const vec3 white = vec3(1.0);" +
 "const vec3 aquamarine = vec3(0.47, 0.98, 0.78);" +
+"const vec3 turquoise = vec3(0.25, 0.88, 0.81);" +
+"const vec3 coral = vec3(1.0, 0.5, 0.31);" +
+"const vec3 limegreen = vec3(0.19, 0.87, 0.19);" +
 // hsbで書かれた(0.0～1.0)の数値vec3をrgbに変換する魔法のコード
 "vec3 getRGB(float h, float s, float b){" +
 "  vec3 c = vec3(h, s, b);" +
@@ -187,19 +208,20 @@ let fs =
 "}" +
 // 正二十面体。
 // こちらはもともと頂点ベース
+// 定数ベクトルで書き換える。無味乾燥。。
 "float icosahedronOuter(vec3 p, float size){" +
 "  size *= ioratio20;" +
-"  vec3 dir = vec3(0.0, 1.0, 0.0);" +
-"  vec3 dir1 = rotateZ(dir, ang_vf1_20);" +
-"  vec3 dir2 = rotateZ(dir, ang_vf2_20);" +
-"  vec3 q;" +
 "  float result = 0.0;" +
-"  for(int i = 0; i < 5; i++){" +
-"    q = rotateY(dir1, pi * float(i) * 0.4);" +
-"    result = max(result, abs(dot(p, q)) - size);" +
-"    q = rotateY(dir2, pi * float(i) * 0.4);" +
-"    result = max(result, abs(dot(p, q)) - size);" +
-"  }" +
+"  result = max(result, abs(dot(p, f20_1)) - size);" +
+"  result = max(result, abs(dot(p, f20_2)) - size);" +
+"  result = max(result, abs(dot(p, f20_3)) - size);" +
+"  result = max(result, abs(dot(p, f20_4)) - size);" +
+"  result = max(result, abs(dot(p, f20_5)) - size);" +
+"  result = max(result, abs(dot(p, f20_6)) - size);" +
+"  result = max(result, abs(dot(p, f20_7)) - size);" +
+"  result = max(result, abs(dot(p, f20_8)) - size);" +
+"  result = max(result, abs(dot(p, f20_9)) - size);" +
+"  result = max(result, abs(dot(p, f20_10)) - size);" +
 "  return result;" +
 "}" +
 // 面ベースで書き直して重ね合わせた方が圧倒的に楽なのでそうする。
@@ -347,6 +369,91 @@ let fs =
 "  }" +
 "  return vec4(skyblue, result);" +
 "}" +
+// 大二十面体
+// 頂点ベクトルをatan(2)だけx軸側に倒してそれを5等分でばりばりーです。
+"vec4 greatdodeca(vec3 p, float size){" +
+"  float t = icosahedronOuter(p, size);" +
+"  float d1 = size * 0.44721;" + // 切り取りに使う正五角形の原点からの距離. 計算により1/√5.
+"  float t0 = dot(p, v20_1);" +
+"  float t1 = dot(p, v20_2);" +
+"  float t2 = dot(p, v20_3);" +
+"  float t3 = dot(p, v20_4);" +
+"  float t4 = dot(p, v20_5);" +
+"  float t5 = dot(p, v20_6);" +
+// くぼみを10対作る操作。逆型の三角錐の対を作り正二十面体からくりぬく感じ。
+"  t = max(t, max(min(min(t0, t1), t2), -max(max(t0, t1), t2)) - d1);" +
+"  t = max(t, max(min(min(t0, t2), t3), -max(max(t0, t2), t3)) - d1);" +
+"  t = max(t, max(min(min(t0, t3), t4), -max(max(t0, t3), t4)) - d1);" +
+"  t = max(t, max(min(min(t0, t4), t5), -max(max(t0, t4), t5)) - d1);" +
+"  t = max(t, max(min(min(t0, t5), t1), -max(max(t0, t5), t1)) - d1);" +
+"  t = max(t, max(min(min(t1, t2), -t4), -max(max(t1, t2), -t4)) - d1);" +
+"  t = max(t, max(min(min(t2, t3), -t5), -max(max(t2, t3), -t5)) - d1);" +
+"  t = max(t, max(min(min(t3, t4), -t1), -max(max(t3, t4), -t1)) - d1);" +
+"  t = max(t, max(min(min(t4, t5), -t2), -max(max(t4, t5), -t2)) - d1);" +
+"  t = max(t, max(min(min(t5, t1), -t3), -max(max(t5, t1), -t3)) - d1);" +
+"  return vec4(turquoise, t);" +
+"}" +
+// 大星型十二面体
+// 正二十面体で小星型と同じことをする・・多分。
+// 違う。頂点ベクトル使ってるんだ。あとで作る。
+"vec4 greatStellaDodeca(vec3 p, float size){" +
+"  float d1 = size * 0.44721;" + // 頂点ベクトルによる平面用
+"  float d2 = size * ioratio20;" + // 面ベクトルによる平面用
+// 頂点ベクトル3つで三角錐を2つ作り面で切って2つに分ける、それを10対。
+"  float v1 = abs(dot(p, v20_1)) - d1;" +
+"  float v2 = abs(dot(p, v20_2)) - d1;" +
+"  float v3 = abs(dot(p, v20_3)) - d1;" +
+"  float v4 = abs(dot(p, v20_4)) - d1;" +
+"  float v5 = abs(dot(p, v20_5)) - d1;" +
+"  float v6 = abs(dot(p, v20_6)) - d1;" +
+"  float f1 = abs(dot(p, f20_1)) - d2;" +
+"  float f2 = abs(dot(p, f20_2)) - d2;" +
+"  float f3 = abs(dot(p, f20_3)) - d2;" +
+"  float f4 = abs(dot(p, f20_4)) - d2;" +
+"  float f5 = abs(dot(p, f20_5)) - d2;" +
+"  float f6 = abs(dot(p, f20_6)) - d2;" +
+"  float f7 = abs(dot(p, f20_7)) - d2;" +
+"  float f8 = abs(dot(p, f20_8)) - d2;" +
+"  float f9 = abs(dot(p, f20_9)) - d2;" +
+"  float f10 = abs(dot(p, f20_10)) - d2;" +
+"  float t = max(-f1, max(v6, max(v2, v3)));" +
+"  t = min(t, max(-f2, max(v2, max(v3, v4))));" +
+"  t = min(t, max(-f3, max(v3, max(v4, v5))));" +
+"  t = min(t, max(-f4, max(v4, max(v5, v6))));" +
+"  t = min(t, max(-f5, max(v5, max(v6, v2))));" +
+"  t = min(t, max(-f6, max(v1, max(v6, v3))));" +
+"  t = min(t, max(-f7, max(v1, max(v2, v4))));" +
+"  t = min(t, max(-f8, max(v1, max(v3, v5))));" +
+"  t = min(t, max(-f9, max(v1, max(v4, v6))));" +
+"  t = min(t, max(-f10, max(v1, max(v5, v2))));" +
+"  return vec4(limegreen, t);" +
+"}" +
+// 小三角六辺形二十面体(small triambic icosahedron)。
+// 正二十面体の最初の星型。
+"vec4 smallTriambicIcosa(vec3 p, float size){" +
+"  size *= ioratio20;" +
+"  float t0 = abs(dot(p, f20_1)) - size;" +
+"  float t1 = abs(dot(p, f20_2)) - size;" +
+"  float t2 = abs(dot(p, f20_3)) - size;" +
+"  float t3 = abs(dot(p, f20_4)) - size;" +
+"  float t4 = abs(dot(p, f20_5)) - size;" +
+"  float t5 = abs(dot(p, f20_6)) - size;" +
+"  float t6 = abs(dot(p, f20_7)) - size;" +
+"  float t7 = abs(dot(p, f20_8)) - size;" +
+"  float t8 = abs(dot(p, f20_9)) - size;" +
+"  float t9 = abs(dot(p, f20_10)) - size;" +
+"  float t = max(-t0, max(t1, max(t4, t5)));" +
+"  t = min(t, max(-t1, max(t2, max(t0, t6))));" +
+"  t = min(t, max(-t2, max(t3, max(t1, t7))));" +
+"  t = min(t, max(-t3, max(t4, max(t2, t8))));" +
+"  t = min(t, max(-t4, max(t0, max(t3, t9))));" +
+"  t = min(t, max(-t5, max(t0, max(t7, t8))));" +
+"  t = min(t, max(-t6, max(t1, max(t8, t9))));" +
+"  t = min(t, max(-t7, max(t2, max(t9, t5))));" +
+"  t = min(t, max(-t8, max(t3, max(t5, t6))));" +
+"  t = min(t, max(-t9, max(t4, max(t6, t7))));" +
+"  return vec4(coral, t);" +
+"}" +
 // mapの返り値をvec4にしてはじめのxyzで色を表現してwで距離を表現する。
 // 0:正四面体, 1:立方体, 2:正八面体, 3:正十二面体, 4:正二十面体.
 "vec4 map(vec3 p){" +
@@ -363,6 +470,11 @@ let fs =
 "  else if(u_figureId == 9){ v = truncIcosa(p, 1.0); }" +
 "  else if(u_figureId == 10){ v = stellaOctangula(p, 1.0); }" +
 "  else if(u_figureId == 11){ v = smallStellaDodeca(p, 1.0); }" +
+"  else if(u_figureId == 12){ v = greatdodeca(p, 1.0); }" +
+"  else if(u_figureId == 11){ v = smallStellaDodeca(p, 1.0); }" +
+"  else if(u_figureId == 12){ v = greatdodeca(p, 1.0); }" +
+"  else if(u_figureId == 13){ v = greatStellaDodeca(p, 0.8); }" +
+"  else if(u_figureId == 14){ v = smallTriambicIcosa(p, 1.0); }" +
 "  return v; " +
 "}" +
 // 法線ベクトルの取得
@@ -432,6 +544,9 @@ let fs =
 "  else if(u_figureId == 9){ bgColor = blue; }" +
 "  else if(u_figureId == 10){ bgColor = aquamarine; }" +
 "  else if(u_figureId == 11){ bgColor = skyblue; }" +
+"  else if(u_figureId == 12){ bgColor = turquoise; }" +
+"  else if(u_figureId == 13){ bgColor = limegreen; }" +
+"  else if(u_figureId == 14){ bgColor = coral; }" +
 "  vec3 color = mix(bgColor, white, 0.5);" +
 "  return color * (0.4 + p.y * 0.3);" +
 "}" +
@@ -484,7 +599,8 @@ const FIXED = 2; // 特定の場所から見る感じ
 // もしくはvec3とかにして具体的に指定して固定するのもありかもね
 
 const figureName = ["tetrahedron", "hexahedron", "octahedron", "dodecahedron", "icosahedron", "truncated tetrahedron", "truncated hexahedron",
-                    "truncated octahedron", "truncated dodecahedron", "truncated icosahedron", "Stella Octangula", "small stellated dodecahedron"];
+                    "truncated octahedron", "truncated dodecahedron", "truncated icosahedron", "Stella Octangula", "small stellated dodecahedron",
+                    "Great dodecahedron", "great stellated dodecahedron", "small triambic icosahedron"];
 
 let myConfig;
 
@@ -537,7 +653,7 @@ class Config{
     const h = 50;
     myShader.setUniform("u_resolution", [myCanvas.width, myCanvas.height]);
     myShader.setUniform("u_mode", FIXED);
-    for(let i = 0; i < 12; i++){
+    for(let i = 0; i < 15; i++){
       myShader.setUniform("u_figureId", i);
       myShader.setUniform("u_gray", false);
       myCanvas.quad(-1, -1, -1, 1, 1, 1, 1, -1);
@@ -563,8 +679,9 @@ class Config{
     for(let i = 0; i < 5; i++){
       this.figureButtonSet.addNormalButton(11 + 62 * i, 122, 50, 50, imgs.active[i + 5], imgs.nonActive[i + 5]);
     }
-    this.figureButtonSet.addNormalButton(11, 184, 50, 50, imgs.active[10], imgs.nonActive[10]);
-    this.figureButtonSet.addNormalButton(73, 184, 50, 50, imgs.active[11], imgs.nonActive[11]);
+    for(let i = 0; i < 5; i++){
+      this.figureButtonSet.addNormalButton(11 + 62 * i, 184, 50, 50, imgs.active[i + 10], imgs.nonActive[i + 10]);
+    }
     this.figureButtonSet.initialize(this.offSetX, this.offSetY);
 	}
 	drawFigureName(){

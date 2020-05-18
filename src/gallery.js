@@ -23,6 +23,7 @@ let fs =
 "uniform int u_mode;" + // 0でauto, 1でmanual.
 "uniform int u_figureId;" + // 立体の種類
 "uniform bool u_gray;" + // グレーバージョン
+"uniform float u_sizeFactor;" + // サイズファクター
 // 定数
 "const float pi = 3.14159;" +
 // 内外半径比・・内接球半径を外接球半径で割った値。
@@ -456,25 +457,24 @@ let fs =
 "}" +
 // mapの返り値をvec4にしてはじめのxyzで色を表現してwで距離を表現する。
 // 0:正四面体, 1:立方体, 2:正八面体, 3:正十二面体, 4:正二十面体.
+// 基本の大きさに対して0.5～1.5倍する感じ。
 "vec4 map(vec3 p){" +
 "  vec4 v;" +
-"  if(u_figureId == 0){ v = tetra(p, 1.0); }" +
-"  else if(u_figureId == 1){ v = hexa(p, 1.0); }" +
-"  else if(u_figureId == 2){ v = octa(p, 1.0); }" +
-"  else if(u_figureId == 3){ v = dodeca(p, 1.0); }" +
-"  else if(u_figureId == 4){ v = icosa(p, 1.0); }" +
-"  else if(u_figureId == 5){ v = truncTetra(p, 1.0); }" +
-"  else if(u_figureId == 6){ v = truncHexa(p, 1.0); }" +
-"  else if(u_figureId == 7){ v = truncOcta(p, 1.0); }" +
-"  else if(u_figureId == 8){ v = truncDodeca(p, 1.0); }" +
-"  else if(u_figureId == 9){ v = truncIcosa(p, 1.0); }" +
-"  else if(u_figureId == 10){ v = stellaOctangula(p, 1.0); }" +
-"  else if(u_figureId == 11){ v = smallStellaDodeca(p, 1.0); }" +
-"  else if(u_figureId == 12){ v = greatdodeca(p, 1.0); }" +
-"  else if(u_figureId == 11){ v = smallStellaDodeca(p, 1.0); }" +
-"  else if(u_figureId == 12){ v = greatdodeca(p, 1.0); }" +
-"  else if(u_figureId == 13){ v = greatStellaDodeca(p, 0.8); }" +
-"  else if(u_figureId == 14){ v = smallTriambicIcosa(p, 1.0); }" +
+"  if(u_figureId == 0){ v = tetra(p, 1.0 * u_sizeFactor); }" +
+"  else if(u_figureId == 1){ v = hexa(p, 1.0 * u_sizeFactor); }" +
+"  else if(u_figureId == 2){ v = octa(p, 1.0 * u_sizeFactor); }" +
+"  else if(u_figureId == 3){ v = dodeca(p, 1.0 * u_sizeFactor); }" +
+"  else if(u_figureId == 4){ v = icosa(p, 1.0 * u_sizeFactor); }" +
+"  else if(u_figureId == 5){ v = truncTetra(p, 1.0 * u_sizeFactor); }" +
+"  else if(u_figureId == 6){ v = truncHexa(p, 1.0 * u_sizeFactor); }" +
+"  else if(u_figureId == 7){ v = truncOcta(p, 1.0 * u_sizeFactor); }" +
+"  else if(u_figureId == 8){ v = truncDodeca(p, 1.0 * u_sizeFactor); }" +
+"  else if(u_figureId == 9){ v = truncIcosa(p, 1.0 * u_sizeFactor); }" +
+"  else if(u_figureId == 10){ v = stellaOctangula(p, 1.0 * u_sizeFactor); }" +
+"  else if(u_figureId == 11){ v = smallStellaDodeca(p, 0.5 * u_sizeFactor); }" +
+"  else if(u_figureId == 12){ v = greatdodeca(p, 1.0 * u_sizeFactor); }" +
+"  else if(u_figureId == 13){ v = greatStellaDodeca(p, 0.5 * u_sizeFactor); }" +
+"  else if(u_figureId == 14){ v = smallTriambicIcosa(p, 1.0 * u_sizeFactor); }" +
 "  return v; " +
 "}" +
 // 法線ベクトルの取得
@@ -512,16 +512,13 @@ let fs =
 "}" +
 // カメラなどの回転。オート、マニュアル両方用意する
 // x軸周り回転のピッチングとy軸周りのヨーイングだけ。
+// 今回FIXEDは廃止。
 "void transform(out vec3 p){" +
-"  if(u_mode == 2){" +
-"    p = rotateX(p, -pi * 0.25);" +
-"    p = rotateY(p, pi * 0.25);" +
-"    return;" +
-"  }" + // 停止
+// AUTO MODE.
 "  float angleX = pi * u_time * 0.3;" +
 "  float angleY = pi * u_time * 0.15;" +
-"  if(u_mode == 1){" +
-"    angleX = pi * 0.3 * (2.0 * u_mouse.y - 1.0);" +
+"  if(u_mode == 1){" + // MANUAL MODE.
+"    angleX = pi * (2.0 * u_mouse.y - 1.0);" +
 "    angleY = pi * 4.0 * (2.0 * u_mouse.x - 1.0);" +
 "  }" +
 "  p = rotateX(p, angleX);" +
@@ -595,7 +592,7 @@ let myCanvas;
 let isLoop = true;
 const AUTO = 0; // 自動回転
 const MANUAL = 1; // 手動回転
-const FIXED = 2; // 特定の場所から見る感じ
+// FIXEDは要らないね・・代わりにMANUALでぐるぐるぐるぐる
 // もしくはvec3とかにして具体的に指定して固定するのもありかもね
 
 const figureName = ["tetrahedron", "hexahedron", "octahedron", "dodecahedron", "icosahedron", "truncated tetrahedron", "truncated hexahedron",
@@ -635,11 +632,13 @@ class Config{
 		this.board = createGraphics(320, 480);
 		this.board.colorMode(HSB, 100);
 		this.board.noStroke();
-		this.mode = AUTO;
+		this.mode = MANUAL;
 		this.figureId = 0;
+    this.sizeFactor = 1.0;
 		this.offSetX = 480;
 		this.offSetY = 0;
 		this.createButtons();
+    this.createSizeController();
 	}
   setProperty(propName, value){
     this[propName] = value;
@@ -652,7 +651,8 @@ class Config{
     const w = 50;
     const h = 50;
     myShader.setUniform("u_resolution", [myCanvas.width, myCanvas.height]);
-    myShader.setUniform("u_mode", FIXED);
+    myShader.setUniform("u_mode", AUTO);
+    myShader.setUniform("u_sizeFactor", 1.0); // サイズ調整
     for(let i = 0; i < 15; i++){
       myShader.setUniform("u_figureId", i);
       myShader.setUniform("u_gray", false);
@@ -682,8 +682,19 @@ class Config{
     for(let i = 0; i < 5; i++){
       this.figureButtonSet.addNormalButton(11 + 62 * i, 184, 50, 50, imgs.active[i + 10], imgs.nonActive[i + 10]);
     }
+    this.modeButtonSet = new UniqueButtonSet();
+    this.modeButtonSet.addColorButton(125, 7, 90, 36, color("forestgreen"), "MANUAL");
+    this.modeButtonSet.addColorButton(225, 7, 90, 36, color("forestgreen"), "AUTO");
     this.figureButtonSet.initialize(this.offSetX, this.offSetY);
+    this.modeButtonSet.initialize(this.offSetX, this.offSetY);
+    this.modeButtonSet.setValue([MANUAL, AUTO]);
 	}
+  createSizeController(){
+    let cursor1 = new Cursor("circle", {r:10}, 1.1, color(70));
+    this.sizeFactorController = new LineSlider(0.5, 1.5, cursor1, createVector(12, 25), createVector(112, 25));
+    this.sizeFactorController.initialize(this.offSetX, this.offSetY);
+    this.sizeFactorController.setValue(1.0);
+  }
 	drawFigureName(){
 		fill(255);
 		textSize(30);
@@ -696,19 +707,32 @@ class Config{
 		gr.fill(55, 30, 100);
 		gr.rect(0, 0, 320, 480);
     this.figureButtonSet.draw(gr);
+    this.modeButtonSet.draw(gr);
+    this.sizeFactorController.draw(gr);
     this.drawFigureName();
 	}
 	setParameter(){
 		myShader.setUniform("u_mode", this.mode);
 		myShader.setUniform("u_figureId", this.figureId);
+    myShader.setUniform("u_sizeFactor", this.sizeFactor);
 	}
 	update(){
+    this.setProperty("mode", this.modeButtonSet.getValue());
     this.setProperty("figureId", this.figureButtonSet.getActiveButtonId());
+    if(this.sizeFactorController.active){
+      this.sizeFactorController.update();
+      this.setProperty("sizeFactor", this.sizeFactorController.getValue());
+    }
 		this.setParameter();
 		myShader.setUniform("u_gray", false);
 	}
   activate(){
     this.figureButtonSet.activate();
+    this.modeButtonSet.activate();
+    this.sizeFactorController.activate();
+  }
+  inActivate(){
+    this.sizeFactorController.inActivate();
   }
 	draw(){
 		this.drawConfig();
@@ -893,6 +917,170 @@ class UniqueButtonSet extends ButtonSet{
 	}
 }
 
+// ---------------------------------------------------------------------------------------- //
+// Cursor and Slider.
+// サイズ変更用のカーソルとスライダー。
+
+// 使い方。
+// 先にカーソルをサイズや形、色指定して生成する。
+// それを元にスライダーを生成。形状はとりあえず直線が用意してある。
+// mousePressedでactivateしてmouseReleasedでinActivateするだけ。
+// 使う前にinitializeでカーソルの位置を調整するの忘れずに。
+// 値の取得はgetValueでminとmaxの値に応じて返されるのでそれを使って何でもできる。
+// 気になるなら値の取得をmouseIsPressedの間だけにすればいい。以上。
+
+// コンフィグエリアが指定されてその上に描画することが多いと思うのでそういう前提で書いてる・・悪しからず。
+
+// offSetX, offSetYのプロパティを追加。コンフィグエリアの位置情報がないとhitをきちんと実行できない。
+
+// スライダー。
+class Slider{
+  constructor(minValue, maxValue, cursor){
+    this.minValue = minValue;
+    this.maxValue = maxValue;
+    this.cursor = cursor;
+    this.active = false;
+  }
+  initialize(offSetX, offSetY){
+    /* カーソルの初期位置を決める */
+    // offSetX, offSetYはスライダーを置くエリアのleftとtopに当たるポイント。hitのところであれする。
+    this.offSetX = offSetX;
+    this.offSetY = offSetY;
+  }
+  activate(){
+    // マウス位置がカーソルにヒットしなければactiveにしない。
+    if(!this.cursor.hit(mouseX - this.offSetX, mouseY - this.offSetY)){ return; }
+    this.active = true;
+  }
+  inActivate(){
+    this.active = false;
+  }
+  getValue(){ /* カーソルの位置と自身のレールデータから値を取り出す処理。形状による。 */ }
+  update(){ /* activeであればmouseIsPressedである限りカーソルの位置を更新し続ける */ }
+  draw(gr){ /* レールの形状がスライダーによるのでここには何も書けない */ }
+}
+
+// startとendは位置ベクトルで、それぞれがminとmaxに対応する。
+class LineSlider extends Slider{
+  constructor(minValue, maxValue, cursor, start, end){
+    super(minValue, maxValue, cursor);
+    this.start = start;
+    this.end = end;
+    this.length = p5.Vector.dist(start, end);
+    this.lineWeight = 3.0;
+  }
+  initialize(offSetX, offSetY){
+    super.initialize(offSetX, offSetY);
+    // start位置におく。
+    this.cursor.setPosition(this.start.x, this.start.y);
+  }
+  getValue(){
+    // cursorのpositionのstartとendに対する相対位置の割合(prg)からvalueを割り出す。
+    const prg = p5.Vector.dist(this.start, this.cursor.position) / this.length;
+    return this.minValue * (1 - prg) + this.maxValue * prg;
+  }
+  setValue(newValue){
+		// 値を直接決める（デフォルト値を設定するのに使う）
+		let ratio = (newValue - this.minValue) / (this.maxValue - this.minValue);
+		let cursorPos = p5.Vector.lerp(this.start, this.end, ratio);
+		this.cursor.setPosition(cursorPos.x, cursorPos.y);
+	}
+  update(){
+    if(!this.active){ return; }
+    // マウス位置から垂線を下ろしてratioを割り出す。ratioはconstrainで0以上1以下に落とす。
+    const mousePosition = createVector(mouseX - this.offSetX, mouseY - this.offSetY);
+    let ratio = p5.Vector.dot(p5.Vector.sub(this.start, this.end), p5.Vector.sub(this.start, mousePosition)) / pow(this.length, 2);
+    ratio = constrain(ratio, 0, 1);
+    const newPos = p5.Vector.add(p5.Vector.mult(this.start, 1 - ratio), p5.Vector.mult(this.end, ratio));
+    this.cursor.setPosition(newPos.x, newPos.y);
+  }
+  draw(gr){
+    gr.stroke(0);
+    gr.strokeWeight(this.lineWeight);
+    gr.line(this.start.x, this.start.y, this.end.x, this.end.y);
+    gr.noStroke();
+    this.cursor.draw(gr);
+  }
+}
+// カーソル。
+class Cursor{
+  constructor(type, param, marginFactor = 1.0, cursorColor = color(0)){
+    this.type = type;
+    this.position = createVector();
+    this.param = param;
+    this.marginFactor = marginFactor; // マウスダウン位置がカーソルの当たり判定からはみ出していても大丈夫なように。
+    // たとえば1.1なら|x-mouseX|<(w/2)*1.1までOKとかそういうの。円形なら・・分かるよね。
+    this.cursorColor = cursorColor; // カーソルの色。
+    // offSetXとoffSetYは中心からgraphicの描画位置までの距離。
+    switch(type){
+      case "rect":
+        this.offSetX = param.w * 0.5;
+        this.offSetY = param.h * 0.5;
+        break;
+      case "circle":
+        this.offSetX = param.r;
+        this.offSetY = param.r;
+        break;
+    }
+    this.graphic = this.createCursorGraphic();
+  }
+  createCursorGraphic(){
+    // とりあえず単純に（あとできちんとやる）
+    switch(this.type){
+      case "rect":
+        return createRectCursorGraphic(this.param.w, this.param.h, this.cursorColor);
+      case "circle":
+        return createCircleCursorGraphic(this.param.r, this.cursorColor);
+    }
+    return gr;
+  }
+  setPosition(x, y){
+    this.position.set(x, y);
+  }
+  hit(x, y){
+    const {x:px, y:py} = this.position;
+    switch(this.type){
+      case "rect":
+        return abs(x - px) < this.param.w * 0.5 * this.marginFactor && abs(y - py) < this.param.h * 0.5 * this.marginFactor;
+      case "circle":
+        return pow(x - px, 2) + pow(y - py, 2) < pow(this.param.r * this.marginFactor, 2);
+    }
+  }
+  draw(gr){
+    gr.image(this.graphic, this.position.x - this.offSetX, this.position.y - this.offSetY);
+  }
+}
+
+// RectCursorの描画用
+function createRectCursorGraphic(w, h, cursorColor){
+  let gr = createGraphics(w, h);
+  gr.noStroke();
+  const edgeSize = min(w, h) * 0.1;
+  const bodyColor = cursorColor;
+  gr.fill(lerpColor(bodyColor, color(255), 0.4));
+  gr.rect(0, 0, w, h);
+  gr.fill(lerpColor(bodyColor, color(0), 0.4));
+  gr.rect(edgeSize, edgeSize, w - edgeSize, h - edgeSize);
+  for(let i = 0; i < 50; i++){
+    gr.fill(lerpColor(bodyColor, color(255), 0.5 * (i / 50)));
+    gr.rect(edgeSize + (w/2 - edgeSize) * (i / 50), edgeSize + (h/2 - edgeSize) * (i / 50),
+            (w - 2 * edgeSize) * (1 - i / 50), (h - 2 * edgeSize) * (1 - i / 50));
+  }
+  return gr;
+}
+
+// CircleCursorの描画用
+function createCircleCursorGraphic(r, cursorColor){
+  let gr = createGraphics(r * 2, r * 2);
+  gr.noStroke();
+  const bodyColor = cursorColor;
+  for(let i = 0; i < 50; i++){
+    gr.fill(lerpColor(bodyColor, color(255), 0.5 * (i / 50)));
+    gr.circle(r, r, 2 * r * (1 - i / 50));
+  }
+  return gr;
+}
+
 // -------------------------------------------------------------------------------------------------------------------- //
 // Interaction.
 
@@ -906,4 +1094,8 @@ function keyTyped(){
 
 function mousePressed(){
   myConfig.activate();
+}
+
+function mouseReleased(){
+  myConfig.inActivate();
 }

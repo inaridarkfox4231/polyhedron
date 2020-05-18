@@ -47,6 +47,14 @@ let fs =
 "const float ang_vf2_12 = 1.75951;" + // atan2(3+√5, -1)
 "const float ang_vf1_20 = 0.65236;" + // atan(3-√5)
 "const float ang_vf2_20 = 1.38208;" + // atan(3+√5)
+// 正十二面体の面対ベクトル（6つ）
+"const vec3 f12_1 = vec3(-0.60706, 0.79465, 0.0);" +
+"const vec3 f12_2 = vec3(-0.98225, -0.18759, 0.0);" +
+"const vec3 f12_3 = vec3(0.30353, 0.79465, 0.52573);" +
+"const vec3 f12_4 = vec3(0.30353, 0.79465, -0.52573);" +
+"const vec3 f12_5 = vec3(0.49112, -0.18759, 0.85065);" +
+"const vec3 f12_6 = vec3(0.49112, -0.18759, -0.85065);" +
+// 正二十面体の面対ベクトル（10個）
 // 色関連
 // 自由に取得するならgetRGBで。
 "const vec3 black = vec3(0.2);" +
@@ -166,19 +174,15 @@ let fs =
 "}" +
 // 正十二面体。
 // 頂点ベースに書き換える。
+// 定数ベクトルで書き換えたい。（理屈は他のプログラムにちゃんと書いてあるので）
 "float dodecahedronOuter(vec3 p, float size){" +
 "  size *= ioratio12;" + // 内接球半径
-"  vec3 dir = vec3(0.0, 1.0, 0.0);" +
-"  vec3 dir1 = rotateZ(dir, ang_vf1_12);" + // 頂点周りの3つ(120°)
-"  vec3 dir2 = rotateZ(dir, ang_vf2_12);" + // さらにその周りの3対(60°)
-"  float result = 0.0;" +
-"  vec3 q;" +
-"  for(int i = 0; i < 3; i++){" +
-"    q = rotateY(dir1, pi * float(i) * 2.0 / 3.0);" +
-"    result = max(result, abs(dot(p, q)) - size);" +
-"    q = rotateY(dir2, pi * float(i) * 2.0 / 3.0);" +
-"    result = max(result, abs(dot(p, q)) - size);" +
-"  }" +
+"  float result = abs(dot(p, f12_1)) - size;" +
+"  result = max(result, abs(dot(p, f12_2)) - size);" +
+"  result = max(result, abs(dot(p, f12_3)) - size);" +
+"  result = max(result, abs(dot(p, f12_4)) - size);" +
+"  result = max(result, abs(dot(p, f12_5)) - size);" +
+"  result = max(result, abs(dot(p, f12_6)) - size);" +
 "  return result;" +
 "}" +
 // 正二十面体。
@@ -309,6 +313,40 @@ let fs =
 "  updateDist(color, dist, aquamarine * 0.8, tetrahedronOuter(-p, size), 0);" +
 "  return vec4(color, dist);" +
 "}" +
+// 小星型十二面体
+// 6つの面対のうちひとつは外側のこり5つは内側っていうのを6つ集めてminで合併する。
+// 6つのmaxのうち5つのmaxを取るので出てくるのは最大と2番目だけ。
+// だからそれを求めることで計算を高速化している。
+"vec4 smallStellaDodeca(vec3 p, float size){" +
+"  size *= ioratio12;" + // 内接球半径
+// まずここは定数なので定数でやればいいわけで・・ねぇ。
+// 正十二面体と同じ定数だからもういっそ定数ベクトル6つでいいと思う。
+"  float t[6];" +
+"  t[0] = abs(dot(p, f12_1)) - size;" +
+"  t[1] = abs(dot(p, f12_2)) - size;" +
+"  t[2] = abs(dot(p, f12_3)) - size;" +
+"  t[3] = abs(dot(p, f12_4)) - size;" +
+"  t[4] = abs(dot(p, f12_5)) - size;" +
+"  t[5] = abs(dot(p, f12_6)) - size;" +
+"  float t1st = t[0];" +
+"  int maxIndex = 0;" +
+"  float t2nd = -1e10;" +
+"  for(int i = 1; i < 6; i++){" +
+"    if(t1st < t[i]){" +
+"      t2nd = t1st;" +
+"      t1st = t[i];" +
+"      maxIndex = i;" +
+"    }else if(t2nd < t[i]){" +
+"      t2nd = t[i];" +
+"    }" +
+"  }" +
+"  float result = max(-t1st, t2nd);" +
+"  for(int i = 0; i < 6; i++){" +
+"    if(i == maxIndex){ continue; }" +
+"    result = min(result, max(t1st, -t[i]));" +
+"  }" +
+"  return vec4(skyblue, result);" +
+"}" +
 // mapの返り値をvec4にしてはじめのxyzで色を表現してwで距離を表現する。
 // 0:正四面体, 1:立方体, 2:正八面体, 3:正十二面体, 4:正二十面体.
 "vec4 map(vec3 p){" +
@@ -324,6 +362,7 @@ let fs =
 "  else if(u_figureId == 8){ v = truncDodeca(p, 1.0); }" +
 "  else if(u_figureId == 9){ v = truncIcosa(p, 1.0); }" +
 "  else if(u_figureId == 10){ v = stellaOctangula(p, 1.0); }" +
+"  else if(u_figureId == 11){ v = smallStellaDodeca(p, 1.0); }" +
 "  return v; " +
 "}" +
 // 法線ベクトルの取得
@@ -392,6 +431,7 @@ let fs =
 "  else if(u_figureId == 8){ bgColor = purple; }" +
 "  else if(u_figureId == 9){ bgColor = blue; }" +
 "  else if(u_figureId == 10){ bgColor = aquamarine; }" +
+"  else if(u_figureId == 11){ bgColor = skyblue; }" +
 "  vec3 color = mix(bgColor, white, 0.5);" +
 "  return color * (0.4 + p.y * 0.3);" +
 "}" +
@@ -444,7 +484,7 @@ const FIXED = 2; // 特定の場所から見る感じ
 // もしくはvec3とかにして具体的に指定して固定するのもありかもね
 
 const figureName = ["tetrahedron", "hexahedron", "octahedron", "dodecahedron", "icosahedron", "truncated tetrahedron", "truncated hexahedron",
-                    "truncated octahedron", "truncated dodecahedron", "truncated icosahedron", "Stella Octangula"];
+                    "truncated octahedron", "truncated dodecahedron", "truncated icosahedron", "Stella Octangula", "small stellated dodecahedron"];
 
 let myConfig;
 
@@ -497,7 +537,7 @@ class Config{
     const h = 50;
     myShader.setUniform("u_resolution", [myCanvas.width, myCanvas.height]);
     myShader.setUniform("u_mode", FIXED);
-    for(let i = 0; i < 11; i++){
+    for(let i = 0; i < 12; i++){
       myShader.setUniform("u_figureId", i);
       myShader.setUniform("u_gray", false);
       myCanvas.quad(-1, -1, -1, 1, 1, 1, 1, -1);
@@ -524,6 +564,7 @@ class Config{
       this.figureButtonSet.addNormalButton(11 + 62 * i, 122, 50, 50, imgs.active[i + 5], imgs.nonActive[i + 5]);
     }
     this.figureButtonSet.addNormalButton(11, 184, 50, 50, imgs.active[10], imgs.nonActive[10]);
+    this.figureButtonSet.addNormalButton(73, 184, 50, 50, imgs.active[11], imgs.nonActive[11]);
     this.figureButtonSet.initialize(this.offSetX, this.offSetY);
 	}
 	drawFigureName(){

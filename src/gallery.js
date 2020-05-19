@@ -90,6 +90,7 @@ let fs =
 "const vec3 turquoise = vec3(0.25, 0.88, 0.81);" +
 "const vec3 coral = vec3(1.0, 0.5, 0.31);" +
 "const vec3 limegreen = vec3(0.19, 0.87, 0.19);" +
+"const vec3 khaki = vec3(0.94, 0.90, 0.55);" +
 // hsbで書かれた(0.0～1.0)の数値vec3をrgbに変換する魔法のコード
 "vec3 getRGB(float h, float s, float b){" +
 "  vec3 c = vec3(h, s, b);" +
@@ -455,6 +456,62 @@ let fs =
 "  t = min(t, max(-t9, max(t4, max(t6, t7))));" +
 "  return vec4(coral, t);" +
 "}" +
+// 完全二十面体(final stellation of the icosahedron)
+"vec4 finalStellaIcosa(vec3 p, float size){" +
+"  float d1 = size;" + // 頂点ベクトル、三角錐の底面
+"  float d2 = size * 0.41947;" + // 三角錐の側面を作る距離
+// 側面を作る距離は正十二面体の方から比を算出している。
+// 要は底面側と側面側の原点からの距離の比が分かればいいので。
+// どうやって側面を割り出したかは内緒。
+"  float v1 = abs(dot(p, v20_1)) - d1;" +
+"  float v2 = abs(dot(p, v20_2)) - d1;" +
+"  float v3 = abs(dot(p, v20_3)) - d1;" +
+"  float v4 = abs(dot(p, v20_4)) - d1;" +
+"  float v5 = abs(dot(p, v20_5)) - d1;" +
+"  float v6 = abs(dot(p, v20_6)) - d1;" +
+"  float f1 = abs(dot(p, f20_1)) - d2;" +
+"  float f2 = abs(dot(p, f20_2)) - d2;" +
+"  float f3 = abs(dot(p, f20_3)) - d2;" +
+"  float f4 = abs(dot(p, f20_4)) - d2;" +
+"  float f5 = abs(dot(p, f20_5)) - d2;" +
+"  float f6 = abs(dot(p, f20_6)) - d2;" +
+"  float f7 = abs(dot(p, f20_7)) - d2;" +
+"  float f8 = abs(dot(p, f20_8)) - d2;" +
+"  float f9 = abs(dot(p, f20_9)) - d2;" +
+"  float f10 = abs(dot(p, f20_10)) - d2;" +
+// ユニットごとに違う色にするには、組の境目ごとに更新したら色替えとでもすればいいかも
+"  float result = max(-v2, max(f6, max(f7, f10)));" + // 頂点1組
+"  result = min(result, max(-v3, max(f7, max(f8, f6))));" +
+"  result = min(result, max(-v4, max(f8, max(f9, f7))));" +
+"  result = min(result, max(-v5, max(f9, max(f10, f8))));" +
+"  result = min(result, max(-v6, max(f10, max(f6, f9))));" +
+"  result = min(result, max(-v5, max(f2, max(f5, f10))));" + // 頂点2組
+"  result = min(result, max(-v3, max(f10, max(f2, f1))));" +
+"  result = min(result, max(-v1, max(f1, max(f10, f7))));" +
+"  result = min(result, max(-v6, max(f7, max(f1, f5))));" +
+"  result = min(result, max(-v4, max(f5, max(f7, f2))));" +
+"  result = min(result, max(-v5, max(f1, max(f8, f3))));" + // 頂点3組
+"  result = min(result, max(-v6, max(f3, max(f1, f6))));" +
+"  result = min(result, max(-v4, max(f6, max(f3, f2))));" +
+"  result = min(result, max(-v1, max(f2, max(f6, f8))));" +
+"  result = min(result, max(-v2, max(f8, max(f2, f1))));" +
+"  result = min(result, max(-v1, max(f3, max(f7, f9))));" + // 頂点4組
+"  result = min(result, max(-v3, max(f9, max(f3, f2))));" +
+"  result = min(result, max(-v6, max(f2, max(f9, f4))));" +
+"  result = min(result, max(-v2, max(f4, max(f2, f7))));" +
+"  result = min(result, max(-v5, max(f7, max(f4, f3))));" +
+"  result = min(result, max(-v1, max(f4, max(f8, f10))));" + // 頂点5組
+"  result = min(result, max(-v4, max(f10, max(f4, f3))));" +
+"  result = min(result, max(-v2, max(f3, max(f10, f5))));" +
+"  result = min(result, max(-v3, max(f5, max(f3, f8))));" +
+"  result = min(result, max(-v6, max(f8, max(f5, f4))));" +
+"  result = min(result, max(-v2, max(f9, max(f1, f5))));" + // 頂点6組
+"  result = min(result, max(-v1, max(f5, max(f9, f6))));" +
+"  result = min(result, max(-v5, max(f6, max(f5, f4))));" +
+"  result = min(result, max(-v3, max(f4, max(f6, f1))));" +
+"  result = min(result, max(-v4, max(f1, max(f4, f9))));" +
+"  return vec4(khaki, result);" +
+"}" +
 // mapの返り値をvec4にしてはじめのxyzで色を表現してwで距離を表現する。
 // 0:正四面体, 1:立方体, 2:正八面体, 3:正十二面体, 4:正二十面体.
 // 基本の大きさに対して0.5～1.5倍する感じ。
@@ -475,6 +532,7 @@ let fs =
 "  else if(u_figureId == 12){ v = greatdodeca(p, 1.0 * u_sizeFactor); }" +
 "  else if(u_figureId == 13){ v = greatStellaDodeca(p, 0.5 * u_sizeFactor); }" +
 "  else if(u_figureId == 14){ v = smallTriambicIcosa(p, 1.0 * u_sizeFactor); }" +
+"  else if(u_figureId == 15){ v = finalStellaIcosa(p, 0.3 * u_sizeFactor); }" +
 "  return v; " +
 "}" +
 // 法線ベクトルの取得
@@ -544,6 +602,7 @@ let fs =
 "  else if(u_figureId == 12){ bgColor = turquoise; }" +
 "  else if(u_figureId == 13){ bgColor = limegreen; }" +
 "  else if(u_figureId == 14){ bgColor = coral; }" +
+"  else if(u_figureId == 15){ bgColor = khaki; }" +
 "  vec3 color = mix(bgColor, white, 0.5);" +
 "  return color * (0.4 + p.y * 0.3);" +
 "}" +
@@ -597,7 +656,7 @@ const MANUAL = 1; // 手動回転
 
 const figureName = ["tetrahedron", "hexahedron", "octahedron", "dodecahedron", "icosahedron", "truncated tetrahedron", "truncated hexahedron",
                     "truncated octahedron", "truncated dodecahedron", "truncated icosahedron", "Stella Octangula", "small stellated dodecahedron",
-                    "Great dodecahedron", "great stellated dodecahedron", "small triambic icosahedron"];
+                    "Great dodecahedron", "great stellated dodecahedron", "small triambic icosahedron", "final stellated icosahedron"];
 
 let myConfig;
 
@@ -653,7 +712,7 @@ class Config{
     myShader.setUniform("u_resolution", [myCanvas.width, myCanvas.height]);
     myShader.setUniform("u_mode", AUTO);
     myShader.setUniform("u_sizeFactor", 1.0); // サイズ調整
-    for(let i = 0; i < 15; i++){
+    for(let i = 0; i < 16; i++){
       myShader.setUniform("u_figureId", i);
       myShader.setUniform("u_gray", false);
       myCanvas.quad(-1, -1, -1, 1, 1, 1, 1, -1);
@@ -682,6 +741,7 @@ class Config{
     for(let i = 0; i < 5; i++){
       this.figureButtonSet.addNormalButton(11 + 62 * i, 184, 50, 50, imgs.active[i + 10], imgs.nonActive[i + 10]);
     }
+    this.figureButtonSet.addNormalButton(11, 246, 50, 50, imgs.active[15], imgs.nonActive[15]);
     this.modeButtonSet = new UniqueButtonSet();
     this.modeButtonSet.addColorButton(125, 7, 90, 36, color("forestgreen"), "MANUAL");
     this.modeButtonSet.addColorButton(225, 7, 90, 36, color("forestgreen"), "AUTO");

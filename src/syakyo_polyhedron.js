@@ -1,170 +1,3 @@
-// なんかすごい、foldで多面体描けるんだって。調べてみたいなーー
-
-// 写経しましょう。
-// https://www.shadertoy.com/view/XlX3zB
-
-#define PI	3.14159265359
-#define PI2	( PI * 2.0 )
-
-#define DISPLAY_FACES true
-#define DISPLAY_SEGMENTS true
-#define DISPLAY_VERTICES true
-
-int Type=3;
-float U=0.,V=0.,W=1.;
-float SRadius=0.03, VRadius=0.07;
-
-vec3 nc,p,pab,pbc,pca;
-void init() {//setup folding planes and vertex
-	float t=iTime;
-    Type=int(fract(0.025*t)*3.)+3;
-    U=0.5*sin(t*1.5)+0.5;
-    V=0.5*sin(t*0.8)+0.5;
-    W=0.5*sin(t*0.3)+0.5;
-    float cospin=cos(PI/float(Type)), scospin=sqrt(0.75-cospin*cospin);
-	nc=vec3(-0.5,-cospin,scospin);//3rd folding plane. The two others are xz and yz planes
-	pab=vec3(0.,0.,1.);
-	pbc=vec3(scospin,0.,0.5);//No normalization in order to have 'barycentric' coordinates work evenly
-	pca=vec3(0.,scospin,cospin);
-	p=normalize((U*pab+V*pbc+W*pca));//U,V and W are the 'barycentric' coordinates (coted barycentric word because I'm not sure if they are really barycentric... have to check)
-	pbc=normalize(pbc);	pca=normalize(pca);//for slightly better DE. In reality it's not necesary to apply normalization :)
-}
-
-vec3 fold(vec3 pos) {
-	for(int i=0;i<5 /*Type*/;i++){
-		pos.xy=abs(pos.xy);//fold about xz and yz planes
-		pos-=2.*min(0.,dot(pos,nc))*nc;//fold about nc plane
-	}
-	return pos;
-}
-
-float D2Planes(vec3 pos) {//distance to the 3 faces
-	pos-=p;
-    float d0=dot(pos,pab);
-	float d1=dot(pos,pbc);
-	float d2=dot(pos,pca);
-	return max(max(d0,d1),d2);
-}
-
-float length2(vec3 p){ return dot(p,p);}
-
-float D2Segments(vec3 pos) {
-	pos-=p;
-	float dla=length2(pos-min(0.,pos.x)*vec3(1.,0.,0.));
-	float dlb=length2(pos-min(0.,pos.y)*vec3(0.,1.,0.));
-	float dlc=length2(pos-min(0.,dot(pos,nc))*nc);
-	return sqrt(min(min(dla,dlb),dlc))-SRadius;
-}
-
-float D2Vertices(vec3 pos) {
-	return length(pos-p)-VRadius;
-}
-
-float Polyhedron(vec3 pos) {
-	pos=fold(pos);
-	float d=10000.;
-	if(DISPLAY_FACES) d=min(d,D2Planes(pos));
-	if(DISPLAY_SEGMENTS) d=min(d,D2Segments(pos));
-	if(DISPLAY_VERTICES)  d=min(d,D2Vertices(pos));
-	return d;
-}
-
-vec3 getColor(vec3 pos){//Not optimized.
-#define Face0Color vec3(.8,0.6,0.);
-#define Face1Color vec3(0.3,0.7,0.2);
-#define Face2Color vec3(0.1,0.4,1.);
-#define SegmentsColor vec3(0.4,0.4,0.7);
-#define VerticesColor vec3(1.,.4,.3);
-	pos=fold(pos);
-	float d0=1000.0,d1=1000.0,d2=1000.,df=1000.,dv=1000.,ds=1000.;
-	if(DISPLAY_FACES){
-		d0=dot(pos-p,pab);
-		d1=dot(pos-p,pbc);
-		d2=dot(pos-p,pca);
-		df=max(max(d0,d1),d2);
-	}
-	if(DISPLAY_SEGMENTS) ds=D2Segments(pos);
-	if(DISPLAY_VERTICES) dv=D2Vertices(pos);
-	float d=min(df,min(ds,dv));
-	vec3 col=Face0Color;
-	if(d==df){
-		if(d==d1) col=Face1Color;
-		if(d==d2) col=Face2Color;
-	}else{
-		if(d==ds) col=SegmentsColor;
-		if(d==dv) col=VerticesColor;
-	}
-	return col;
-}
-//-------------------------------------------------
-//From https://www.shadertoy.com/view/XtXGRS#
-vec2 rotate(in vec2 p, in float t)
-{
-	return p * cos(-t) + vec2(p.y, -p.x) * sin(-t);
-}
-
-float map(in vec3 p)
-{
-    //return length(p)-1.;
-	return mix(length(p)-1.,Polyhedron(p),0.8);//just for fun
-}
-
-vec3 calcNormal(in vec3 p)
-{
-	const vec2 e = vec2(0.0001, 0.0);
-	return normalize(vec3(
-		map(p + e.xyy) - map(p - e.xyy),
-		map(p + e.yxy) - map(p - e.yxy),
-		map(p + e.yyx) - map(p - e.yyx)));
-}
-
-float march(in vec3 ro, in vec3 rd)
-{
-	const float maxd = 5.0;
-	const float precis = 0.001;
-    float h = precis * 2.0;
-    float t = 0.0;
-	float res = -1.0;
-    for(int i = 0; i < 64; i++)
-    {
-        if(h < precis || t > maxd) break;
-	    h = map(ro + rd * t);
-        t += h;
-    }
-    if(t < maxd) res = t;
-    return res;
-}
-
-vec3 transform(in vec3 p)
-{
-    p.yz = rotate(p.yz, iTime * 0.2 + (iMouse.y-0.5*iResolution.y)*PI2/360.);
-    p.zx = rotate(p.zx, iTime * 0.125 + (0.5*iResolution.x-iMouse.x)*PI2/360.);
-    return p;
-}
-
-void mainImage( out vec4 fragColor, in vec2 fragCoord )
-{
-	vec2 p = (2.0 * fragCoord.xy - iResolution.xy) / iResolution.y;
-	vec3 col = vec3(0.3 + p.y * 0.1);
-   	vec3 rd = normalize(vec3(p, -1.8));
-	vec3 ro = vec3(0.0, 0.0, 2.5);
-    vec3 li = normalize(vec3(0.5, 0.8, 3.0));
-    ro = transform(ro);
-	rd = transform(rd);
-	li = transform(li);
-    init();
-    float t = march(ro, rd);
-    if(t > -0.001)
-    {
-        vec3 pos = ro + t * rd;
-        vec3 n = calcNormal(pos);
-		float dif = clamp(dot(n, li), 0.0, 1.0);
-        col = getColor(pos) * dif;
-        col = pow(col, vec3(0.8));
-	}
-   	fragColor = vec4(col, 1.0);
-}
-
 // こちらも。
 // ・・・あの、別に真剣にやらなくていいと思う。そんな暇ないし。
 
@@ -575,4 +408,447 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
     rd.yz = rotate(rd.yz, .83*iTime);
     vec3 col = texture(iChannel1, rd).rgb;
    	fragColor = vec4(col, 1.0);
+}
+
+// なんか追加されたし。
+// これも調べるか・・
+
+// https://www.shadertoy.com/view/XsdyDB
+// foldの謎を解明しない限りどうしようもないな。fold, ナニコレ。
+
+////////////////////////////////////////////////////////////////////////////////
+//
+// Created 2018 by Matthew Arcus
+//
+// Stellations of the Icosahedron.
+//
+// https://en.wikipedia.org/wiki/The_Fifty-Nine_Icosahedra
+//
+// Display selections of Du Val cells that make up the various
+// stellations.
+
+// Controls:
+//
+// Mouse & Up and Down arrow change view
+// 0-9, 'a','b':display the various cell types
+// 'x': chirality of cell f1
+// 's': slices at one of the planes.
+// 'c': show indication of selected cell type
+//
+// Cell types are: A,B,C,D,e1,e2,f1,f2,g1,g2,H,I
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const float PI	= 3.14159265359;
+const float TWOPI = 2.0 * PI;
+
+const vec3 Face0Color = vec3(0.8,0.1,0);
+const vec3 Face1Color = vec3(0.8,0.7,0);
+const vec3 Face2Color = vec3(0.1,0,0.6);
+const vec3 SnubColor = vec3(0,0.5,0.0);
+const vec3 DualColor0 = vec3(0.7,0.1,0.1);
+const vec3 DualColor1 = vec3(0.1,0.1,0.1);
+
+bool slice = false;
+
+struct Plane {
+  int c;   // Color class - these are all the same symmetric plane
+  vec3 n;  // Normal
+};
+
+Plane planes[10];
+
+// Set up the planes. plane 0 is "reference" plane, planes 1-9 intersect with
+// reference sector of plane 0. Plane 9 only occurs in "infinite" stellations
+void initplanes() {
+  planes[0] = Plane(0,vec3(0.3568, 0, 0.9342));
+  planes[1] = Plane(4,vec3(-0.3568, 0, 0.9342));
+  planes[2] = Plane(1,vec3(0.5774, 0.5774, 0.5774));
+  planes[3] = Plane(2,vec3(-0.5774, 0.5774, 0.5774));  //0
+  planes[4] = Plane(3,vec3(0, 0.9342, 0.3568));        //1
+  planes[5] = Plane(2,vec3(0.5774, -0.5774, 0.5774));  //2
+  planes[6] = Plane(3,vec3(-0.5774, -0.5774, 0.5774)); //3
+  planes[7] = Plane(4,vec3(0.9342, 0.3568, 0));
+  planes[8] = Plane(1,vec3(0, -0.9342, 0.3568));
+  planes[9] = Plane(3,vec3(0.9342, -0.3568, 0));
+}
+
+vec3 getplane(int j) {
+#if 1
+  return planes[j].n;
+#else
+  for (int i = 0; i < 12; i++) {
+    if (i == j) return planes[i].n;
+  }
+  return vec3(0);
+#endif
+}
+
+int imod(int n, int m) {
+#if 1
+  return n%m;
+#else
+  return n-n/m*m;
+#endif
+}
+
+vec3 R; // R is the 3rd mirror plane
+
+void init() {
+  const int M = 3, N = 5;
+  float B = cos(PI/float(M));
+  float A = cos(PI/float(N));
+  float C = sqrt(1.0 - A*A - B*B);
+  R = vec3(-A,-B,C); // 3rd folding plane. The two others are xz and yz planes
+}
+
+bool keypress(int code) {
+#if !defined LOCAL
+  return texelFetch(iChannel0, ivec2(code,2),0).x != 0.0;
+#else
+  return false;
+#endif
+}
+
+const int CHAR_0 = 48;
+const int CHAR_A = 65;
+const int CHAR_B = 66;
+const int CHAR_C = 67;
+const int CHAR_D = 68;
+const int CHAR_F = 70;
+const int CHAR_G = 71;
+const int CHAR_M = 77;
+const int CHAR_P = 80;
+const int CHAR_Q = 81;
+const int CHAR_R = 82;
+const int CHAR_S = 83;
+const int CHAR_X = 88;
+const int KEY_LEFT = 37;
+const int KEY_UP = 38;
+const int KEY_RIGHT = 39;
+const int KEY_DOWN = 40;
+
+vec3 refla(vec3 p) { return vec3(-p.x,p.y,p.z); }
+vec3 reflb(vec3 p) { return vec3(p.x,-p.y,p.z); }
+vec3 reflc(vec3 p) { return p - 2.0*dot(p,R)*R; } //fold about R plane
+
+// Return the parity of the number of mirror flips
+int fold(inout vec3 pos) {
+  int flips = 0;
+  for (int i = 0; i < 5; i++) {
+    flips += int(pos.x < 0.0); // I hope this is branchless
+    pos.x = abs(pos.x);
+    flips += int(pos.y < 0.0);
+    pos.y = abs(pos.y);
+    float k = dot(pos,R);
+    flips += int(k < 0.0);
+    pos -= 2.0*min(0.0,k)*R; //fold about R plane
+  }
+  return imod(flips,2);
+}
+
+// We have separate functions for each shell.
+// And a separate overload that sets the color
+void A(vec3 p, inout float d) {
+  d = min(d,dot(p,planes[0].n) - 1.0);
+}
+
+void A(vec3 p, inout float d, inout vec3 color) {
+  float d0 = dot(p,planes[0].n) - 1.0;
+  if (d0 >= d) return;
+  d = d0;
+  color = vec3(1);
+}
+
+void B(vec3 p, inout float d) {
+  d = min(d,dot(p,planes[1].n) - 1.0);
+}
+
+void B(vec3 p, inout float d, inout vec3 color) {
+  float d0 = dot(p,planes[1].n) - 1.0;
+  if (d0 >= d) return;
+  d = d0;
+  color = vec3(0,1,0);
+}
+
+void C(vec3 p, inout float d) {
+  d = min(d,dot(p,planes[2].n) - 1.0);
+}
+
+void C(vec3 p, inout float d, inout vec3 color) {
+  float d0 = dot(p,planes[2].n) - 1.0;
+  if (d0 >= d) return;
+  d = d0;
+  color = vec3(0,0,1);
+}
+
+bool DEFG(vec3 pos, ivec4 a, inout float d) {
+  float d0 = -1.0;
+  d0 = max(d0,float(a[0])*(dot(pos,getplane(3)) - 1.0));
+  d0 = max(d0,float(a[1])*(dot(pos,getplane(4)) - 1.0));
+  d0 = max(d0,float(a[2])*(dot(pos,getplane(5)) - 1.0));
+  d0 = max(d0,float(a[3])*(dot(pos,getplane(6)) - 1.0));
+  if (d <= d0) return false;
+  d = d0;
+  return true;
+}
+
+bool DEFG(vec3 pos, ivec4 a, inout float d, inout vec3 color) {
+  float k, d0 = -1.0;
+  vec3 color0;
+  int type = 0;
+  if (a[0] != 0) {
+    float k = float(a[0])*(dot(pos,getplane(3)) - 1.0);
+    if (k > d0) {
+      d0 = k;
+      type = a[0];
+    }
+  }
+  if (a[1] != 0) {
+    float k = float(a[1])*(dot(pos,getplane(4)) - 1.0);
+    if (k > d0) {
+      d0 = k;
+      type = a[1];
+    }
+  }
+  if (a[2] != 0) {
+    float k = float(a[2])*(dot(pos,getplane(5)) - 1.0);
+    if (k > d0) {
+      d0 = k;
+      type = a[2];
+    }
+  }
+  if (a[3] != 0) {
+    float k = float(a[3])*(dot(pos,getplane(6)) - 1.0);
+    if (k > d0) {
+      d0 = k;
+      type = a[3];
+    }
+  }
+  if (d0 < d) {
+    d = d0;
+    if (type == -1) {
+      color = vec3(1,1,0);
+    } else if (type == 1) {
+      color = vec3(1,0,0);
+    } else {
+      color = vec3(1,0,1);
+    }
+  }
+  return true;
+}
+
+void D(vec3 p, inout float d) { DEFG(p,ivec4(1,0,1,0),d); }
+void D(vec3 p, inout float d, inout vec3 color) { DEFG(p,ivec4(1,0,1,0),d,color); }
+void e1(vec3 p, inout float d) { DEFG(p,ivec4(1,0,-1,0),d); }
+void e1(vec3 p, inout float d, inout vec3 color) { DEFG(p,ivec4(1,0,-1,0),d,color); }
+void e2(vec3 p, inout float d) { DEFG(p,ivec4(-1,1,1,0),d); }
+void e2(vec3 p, inout float d, inout vec3 color) { DEFG(p,ivec4(-1,1,1,0),d,color); }
+bool f1(vec3 p, inout float d) { return DEFG(p,ivec4(-1,1,-1,1),d); } // Achiral form
+bool f1(vec3 p, inout float d, inout vec3 color) { return DEFG(p,ivec4(-1,1,-1,1),d,color); } // Achiral form
+
+void f1(vec3 p, int parity, inout float d) {
+  if (parity == 0) {
+    f1(p,d);
+  } else {
+    f1(refla(p),d);
+    f1(reflb(p),d);
+    f1(reflc(p),d);
+  }
+}
+void f1(vec3 p, int parity, inout float d, inout vec3 color) {
+  if (parity == 0) {
+    f1(p,d,color);
+    //color = vec3(1,0,0);
+  } else {
+    // Don't usually end up here.
+    if (f1(refla(p),d)) color = vec3(1,0,0);
+    if (f1(reflb(p),d)) color = vec3(1,0,0);
+    if (f1(reflc(p),d)) color = vec3(1,0,0);
+  }
+}
+void f2(vec3 p, inout float d) { DEFG(p,ivec4(0,-1,1,0),d); }
+void f2(vec3 p, inout float d, inout vec3 color) { DEFG(p,ivec4(0,-1,1,0),d,color); }
+void g1(vec3 p, inout float d) { DEFG(p,ivec4(0,1,0,-1),d); }
+void g1(vec3 p, inout float d, inout vec3 color) { DEFG(p,ivec4(0,1,0,-1),d,color); }
+void g2(vec3 p, inout float d) { DEFG(p,ivec4(0,-1,-1,1),d); }
+void g2(vec3 p, inout float d, inout vec3 color) { DEFG(p,ivec4(0,-1,-1,1),d,color); }
+void H(vec3 p, inout float d) {
+  float d0 = max(dot(p,getplane(7)) - 1.0,
+                 dot(p,getplane(8)) - 1.0);
+  d = min(d,d0);
+}
+void H(vec3 p, inout float d, inout vec3 color) {
+  float d0 = max(dot(p,getplane(7)) - 1.0,
+                 dot(p,getplane(8)) - 1.0);
+  if (d0 < d) {
+    d = d0;
+    color = 0.3*vec3(1,0.5,1);
+  }
+}
+// One of the "lost stellations"
+void I(vec3 p, inout float d) {
+  float d0 = max(dot(p,getplane(8)) - 1.0,
+                 -dot(p,getplane(9)) - 1.0);
+  d = min(d,d0);
+}
+
+void I(vec3 p, inout float d, inout vec3 color) {
+  float d0 = max(dot(p,getplane(8)) - 1.0,
+                 -dot(p,getplane(9)) - 1.0);
+  if (d0 < d) {
+    d = d0;
+    color = 0.3*vec3(0.5,1,1);
+  }
+}
+
+// Possible cells are A,B,C,D,e1,e2,f1,f2,g1,g2,H,I plus parity for f1
+bool control[12];
+bool achiral = false;
+
+float Polyhedron(vec3 p) {
+  int parity = fold(p);
+  float d = 1e8;
+  if (control[0]) A(p,d);
+  if (control[1]) B(p,d);
+  if (control[2]) C(p,d);
+  if (control[3]) D(p,d);
+  if (control[4]) e1(p,d);
+  if (control[5]) e2(p,d);
+  if (control[6]) f1(p,achiral?0:parity,d);
+  if (control[7]) f2(p,d);
+  if (control[8]) g1(p,d);
+  if (control[9]) g2(p,d);
+  if (control[10]) H(p,d);
+  if (control[11]) I(p,d);
+  return d;
+}
+
+vec3 getColor(vec3 p){
+  int parity = fold(p);
+  vec3 color = vec3(0);
+  float d = 1e8;
+  if (control[0]) A(p,d,color);
+  if (control[1]) B(p,d,color);
+  if (control[2]) C(p,d,color);
+  if (control[3]) D(p,d,color);
+  if (control[4]) e1(p,d,color);
+  if (control[5]) e2(p,d,color);
+  if (control[6]) f1(p,achiral?0:parity,d,color);
+  if (control[7]) f2(p,d,color);
+  if (control[8]) g1(p,d,color);
+  if (control[9]) g2(p,d,color);
+  if (control[10]) H(p,d,color);
+  if (control[11]) I(p,d,color);
+  return color;
+}
+
+vec2 rotate(vec2 p, float t) {
+  return p * cos(-t) + vec2(p.y, -p.x) * sin(-t);
+}
+
+float map(vec3 p) {
+  float d = Polyhedron(p);
+  if (slice) d = max(d,dot(p,planes[0].n)-1.01);
+  return d;
+}
+
+vec3 calcNormal(vec3 p) {
+  const vec2 e = vec2(0.001, 0.0);
+  return normalize(vec3(map(p + e.xyy) - map(p - e.xyy),
+                        map(p + e.yxy) - map(p - e.yxy),
+                        map(p + e.yyx) - map(p - e.yyx)));
+}
+
+float march(in vec3 ro, in vec3 rd) {
+  const float maxd = 30.0;
+  const float precis = 0.0001;
+  float h = precis * 2.0;
+  float t = 0.0;
+  float res = -1.0;
+  for(int i = 0; i < 64; i++) {
+      if (h < precis || t > maxd) break;
+      h = map(ro + rd * t);
+      t += h;
+    }
+  if (t < maxd) res = t;
+  return res;
+}
+
+vec3 transform(in vec3 p) {
+  if (iMouse.x > 0.0) {
+    float theta = -(2.0*iMouse.y-iResolution.y)/iResolution.y*PI;
+    float phi = -(2.0*iMouse.x-iResolution.x)/iResolution.x*PI;
+    p.yz = rotate(p.yz,theta);
+    p.zx = rotate(p.zx,phi);
+  }
+  p.yz = rotate(p.yz,iTime * 0.125);
+  p.zx = rotate(p.zx,iTime * 0.2);
+  return p;
+}
+
+vec4 store(int i,int j) {
+  return texelFetch(iChannel1, ivec2(i,j),0);
+}
+
+int keycount(int key) {
+  return int(store(0,key).x);
+}
+
+void mainImage( out vec4 fragColor, in vec2 fragCoord ) {
+  achiral = keypress(CHAR_X);
+  control[0] = keypress(CHAR_0);
+  control[1] = keypress(CHAR_0+1);
+  control[2] = keypress(CHAR_0+2);
+  control[3] = keypress(CHAR_0+3);
+  control[4] = keypress(CHAR_0+4);
+  control[5] = keypress(CHAR_0+5);
+  control[6] = !keypress(CHAR_0+6);
+  control[7] = !keypress(CHAR_0+7);
+  control[8] = !keypress(CHAR_0+8);
+  control[9] = keypress(CHAR_0+9);
+  control[10] = keypress(CHAR_A);
+  control[11] = keypress(CHAR_B);
+  slice = keypress(CHAR_S);
+  bool showcontrols = keypress(CHAR_C);
+  initplanes();
+  vec2 p = fragCoord.xy / iResolution.xy;
+  p.y = 1.0-p.y;
+  // Now both coords are in (0,1)
+  p = 2.0*p-1.0;
+  p *= iResolution.xy/iResolution.y;
+  p *= 3.0;
+  vec3 col = vec3(0.3 + p.y * 0.1);
+  vec3 ro = vec3(0.0, 0.0, 7.5);
+  vec3 rd = normalize(vec3(p, -6.0));
+  vec3 li = normalize(vec3(0.5, 0.8, 3.0));
+  ro = transform(ro);
+  rd = transform(rd);
+  li = transform(li);
+  init();
+  ro *= 0.1*float(10+keycount(KEY_DOWN)-keycount(KEY_UP));
+  float t = march(ro,rd);
+  if (t > 0.001) {
+    vec3 p = ro + t * rd;
+    vec3 n = calcNormal(p);
+    float diffuse = clamp(dot(n, li), 0.0, 1.0);
+    col = 0.8*getColor(p) * diffuse;
+    col = pow(col, vec3(0.4545));
+  }
+  if (showcontrols) {
+    int N = 14;
+    vec2 xy = float(N)*fragCoord.xy/iResolution.y;
+    xy.y -= 0.5;
+    float gridy = round(xy.y);
+    if (distance(xy, vec2(0.5,gridy)) < 0.3) {
+      int i = N-1-int(gridy);
+      if (i < 12 && control[i] ||
+          i == 13 && achiral) {
+        col = 0.8*vec3(1,1,0);
+      } else if (i != 12) {
+        col = 0.8*vec3(1);
+      }
+    }
+  }
+  fragColor = vec4(col, 1.0);
 }

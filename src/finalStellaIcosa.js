@@ -1,4 +1,9 @@
-// 完全二十面体のコードだけ抜き出したもの。もっと削るつもり。
+// ボタンで切り替えて様々な立体が表示されるようにする。
+// 正多面体5種類と切頂多面体5種類はもちろんのこと、
+// 星型やトーラスなど追加できるようにしたい。
+
+// u_figureId; // 描画図形の種類
+// u_size // サイズ。変えたいときに、
 
 let myShader;
 
@@ -13,40 +18,9 @@ let fs =
 "precision mediump float;" +
 // uniform.
 "uniform vec2 u_resolution;" +
-"uniform vec2 u_mouse;" + // -1.0～1.0
 "uniform float u_time;" +
-"uniform int u_mode;" + // 0でauto, 1でmanual.
 // 定数
 "const float pi = 3.14159;" +
-// 内外半径比・・内接球半径を外接球半径で割った値。
-// 1.0より小さくなる。
-"const float ioratio4 = 0.33333;" + // 1.0 / 3.0
-"const float ioratio6 = 0.57735;" + // 1.0 / sqrt(3.0)
-"const float ioratio8 = 0.57735;" + // 上に同じ
-// 以下の値：2√(25 + 11√5) / ((√30)(1 + √5)).
-"const float ioratio12 = 0.79465;" +
-"const float ioratio20 = 0.79465;" + // 上に同じ。
-// カット比・・切り取り半径を外接球半径で割った値。
-"const float coratio4 = 0.55556;" + // 5/9
-"const float coratio6 = 0.80474;" + // (1 + √2)/3
-"const float coratio8 = 0.66667;" + // 2/3
-"const float coratio12 = 0.92962;" + // (5 + 4√5)/15
-"const float coratio20 = 0.81574;" + // (10 + √5)/15
-// 角度定数、隣接する頂点と面重心のベクトルのなす角。
-"const float ang_vf_4 = 1.23096;" + // acos(1/3)
-"const float ang_vf_6 = 0.95532;" + // atan(√2)
-"const float ang_vf_8 = 0.95532;" + // atan(√2)
-"const float ang_vf1_12 = 0.65236;" + // atan(3-√5)
-"const float ang_vf2_12 = 1.75951;" + // atan2(3+√5, -1)
-"const float ang_vf1_20 = 0.65236;" + // atan(3-√5)
-"const float ang_vf2_20 = 1.38208;" + // atan(3+√5)
-// 正十二面体の面対ベクトル（6つ）
-"const vec3 f12_1 = vec3(-0.60706, 0.79465, 0.0);" +
-"const vec3 f12_2 = vec3(-0.98225, -0.18759, 0.0);" +
-"const vec3 f12_3 = vec3(0.30353, 0.79465, 0.52573);" +
-"const vec3 f12_4 = vec3(0.30353, 0.79465, -0.52573);" +
-"const vec3 f12_5 = vec3(0.49112, -0.18759, 0.85065);" +
-"const vec3 f12_6 = vec3(0.49112, -0.18759, -0.85065);" +
 // 正二十面体の面対ベクトル（10個）
 // 内側5個のあと外側5個、一つの面はx軸負方向。
 "const vec3 f20_1 = vec3(-0.60706, 0.79465, 0.0);" +
@@ -66,23 +40,8 @@ let fs =
 "const vec3 v20_4 = vec3(-0.72361, 0.44721, -0.52573);" +
 "const vec3 v20_5 = vec3(-0.72361, 0.44721, 0.52573);" +
 "const vec3 v20_6 = vec3(0.27639, 0.44721, 0.85065);" +
-// 色関連
-// 自由に取得するならgetRGBで。
-"const vec3 black = vec3(0.2);" +
-"const vec3 red = vec3(0.95, 0.3, 0.35);" +
-"const vec3 orange = vec3(0.98, 0.49, 0.13);" +
-"const vec3 yellow = vec3(0.95, 0.98, 0.2);" +
-"const vec3 green = vec3(0.3, 0.9, 0.4);" +
-"const vec3 lightgreen = vec3(0.7, 0.9, 0.1);" +
-"const vec3 purple = vec3(0.6, 0.3, 0.98);" +
-"const vec3 blue = vec3(0.2, 0.25, 0.98);" +
-"const vec3 skyblue = vec3(0.1, 0.65, 0.9);" +
+// 白色。
 "const vec3 white = vec3(1.0);" +
-"const vec3 aquamarine = vec3(0.47, 0.98, 0.78);" +
-"const vec3 turquoise = vec3(0.25, 0.88, 0.81);" +
-"const vec3 coral = vec3(1.0, 0.5, 0.31);" +
-"const vec3 limegreen = vec3(0.19, 0.87, 0.19);" +
-"const vec3 khaki = vec3(0.94, 0.90, 0.55);" +
 // hsbで書かれた(0.0～1.0)の数値vec3をrgbに変換する魔法のコード
 "vec3 getRGB(float h, float s, float b){" +
 "  vec3 c = vec3(h, s, b);" +
@@ -91,12 +50,6 @@ let fs =
 "  return c.z * mix(vec3(1.0), rgb, c.y);" +
 "}" +
 // 双曲線関数
-"float cosh(float x){" +
-"  return 0.5 * (exp(x) + exp(-x));" +
-"}" +
-"float sinh(float x){" +
-"  return 0.5 * (exp(x) - exp(-x));" +
-"}" +
 "float tanh(float x){" +
 "  return (exp(x) - exp(-x)) / (exp(x) + exp(-x));" +
 "}" +
@@ -126,19 +79,8 @@ let fs =
 "float sphere(vec3 p, float r){" +
 "  return length(p) - r;" +
 "}" +
-// 棒。原点からn方向、長さ無限、rは太さ。
-"float bar(vec3 p, vec3 n, float r){" +
-"  return length(p - dot(p, n) * n) - r;" +
-"}" +
-// 棒。aからb. 順不同。rは太さ。
-// 半空間でぶったぎるだけ
-"float finiteBar(vec3 p, vec3 a, vec3 b, float r){" +
-"  vec3 n = normalize(b - a);" +
-"  float t = length(p - a - dot(p - a, n) * n) - r;" +
-"  return max(t, max(dot(p - a, a - b), dot(p - b, b - a)));" +
-"}" +
 // 完全二十面体(final stellation of the icosahedron)
-"vec4 finalStellaIcosa(vec3 p, float size){" +
+"float finalStellaIcosa(vec3 p, float size){" +
 "  float d1 = size;" + // 頂点ベクトル、三角錐の底面
 "  float d2 = size * 0.41947;" + // 三角錐の側面を作る距離
 // 側面を作る距離は正十二面体の方から比を算出している。
@@ -191,12 +133,12 @@ let fs =
 "  result = min(result, max(-v5, max(f6, max(f5, f4))));" +
 "  result = min(result, max(-v3, max(f4, max(f6, f1))));" +
 "  result = min(result, max(-v4, max(f1, max(f4, f9))));" +
-"  return vec4(0.0, 0.0, 0.0, result);" +
+"  return result;" +
 "}" +
 // finalStellaIcosa限定
 // 先っちょに銀の球付けたいね
-"vec4 map(vec3 p){" +
-"  vec4 v = finalStellaIcosa(p, 0.5);" +
+"float map(vec3 p){" +
+"  float v = finalStellaIcosa(p, 0.5);" +
 "  return v; " +
 "}" +
 // 法線ベクトルの取得
@@ -205,9 +147,9 @@ let fs =
 // F(x, y, z) = 0があらわす曲面の、F(x, y, z)が正になる側の
 // 法線を取得するための数学的処理。具体的には偏微分、分母はカット。
 "  vec3 n;" +
-"  n.x = map(p + eps.xyy).w - map(p - eps.xyy).w;" +
-"  n.y = map(p + eps.yxy).w - map(p - eps.yxy).w;" +
-"  n.z = map(p + eps.yyx).w - map(p - eps.yyx).w;" +
+"  n.x = map(p + eps.xyy) - map(p - eps.xyy);" +
+"  n.y = map(p + eps.yxy) - map(p - eps.yxy);" +
+"  n.z = map(p + eps.yyx) - map(p - eps.yyx);" +
 "  return normalize(n);" +
 "}" +
 // レイマーチングのメインコード
@@ -225,7 +167,7 @@ let fs =
 "  for(int i = 0; i < ITERATION; i++){" +
 "    if(h < precis || t > maxd){ break; }" +
 // tだけ進んだ位置で見積もり関数の値hを取得し、tに足す。
-"    h = map(camera + t * ray).w;" +
+"    h = map(camera + t * ray);" +
 "    t += h;" +
 "  }" +
 // t < maxdなら、h < precisで返ったということなのでマーチング成功。
@@ -237,14 +179,8 @@ let fs =
 // 今回FIXEDは廃止。
 "void transform(out vec3 p){" +
 // AUTO MODE.
-"  float angleX = pi * u_time * 0.3;" +
-"  float angleY = pi * u_time * 0.15;" +
-"  if(u_mode == 1){" + // MANUAL MODE.
-"    angleX = pi * (2.0 * u_mouse.y - 1.0);" +
-"    angleY = pi * 4.0 * (2.0 * u_mouse.x - 1.0);" +
-"  }" +
-"  p = rotateX(p, angleX);" +
-"  p = rotateY(p, angleY);" +
+"  p = rotateX(p, pi * u_time * 0.3);" +
+"  p = rotateY(p, pi * u_time * 0.15);" +
 "}" +
 // 背景色。とりあえずデフォでいいよ。
 "vec3 getBackground(vec2 p){" +
@@ -298,8 +234,6 @@ let fs =
 
 let myCanvas;
 let isLoop = true;
-const AUTO = 0; // 自動回転
-const MANUAL = 1; // 手動回転
 
 function setup(){
   createCanvas(480, 560);
@@ -312,12 +246,7 @@ function setup(){
 
 function draw(){
   myShader.setUniform("u_resolution", [myCanvas.width, myCanvas.height]);
-  let mx = constrain(mouseX / myCanvas.width, 0.0, 1.0);
-  let my = 1.0 - constrain(mouseY / myCanvas.height, 0.0, 1.0);
-  // マウスの値は0～1にしよう・・
-  myShader.setUniform("u_mouse", [mx, my]);
   myShader.setUniform("u_time", millis() / 1000);
-	myShader.setUniform("u_mode", AUTO);
   myCanvas.quad(-1, -1, -1, 1, 1, 1, 1, -1);
   image(myCanvas, 0, 0);
 	fill(255);
